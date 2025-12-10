@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Poster Drop | Drag & Create</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    #dropZone { transition: all 0.3s; }
+    #dropZone.dragover { transform: scale(1.02); background: rgba(59, 130, 246, 0.1); }
+  </style>
+</head>
+<body class="h-full bg-gray-50 dark:bg-black text-gray-900 dark:text-white">
+  <div class="min-h-screen flex flex-col items-center justify-center p-4">
+    <h1 class="text-5xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+      Poster Drop
+    </h1>
+    <p class="text-xl mb-10 opacity-80">Drag your images here → instant pro poster</p>
+
+    <div id="dropZone" class="w-full max-w-4xl border-4 border-dashed border-gray-400 dark:border-gray-600 rounded-3xl p-12 text-center cursor-pointer bg-white dark:bg-gray-900 shadow-2xl">
+      <div id="uploadArea" class="space-y-6">
+        <svg class="mx-auto h-24 w-24 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 48 48">
+          <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p class="text-2xl font-semibold">Drop images here or click to upload</p>
+        <input type="file" id="fileInput" multiple accept="image/*" class="hidden" />
+      </div>
+
+      <div id="preview" class="hidden mt-8">
+        <div id="poster" class="relative w-full bg-white dark:bg-black rounded-2xl shadow-2xl overflow-hidden mx-auto" style="aspect-ratio: 4/5; max-width: 800px;">
+          <canvas id="canvas" class="absolute inset-0 w-full h-full"></canvas>
+        </div>
+        <div class="mt-8 flex gap-4 justify-center">
+          <button id="downloadBtn" class="px-10 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-full shadow-lg hover:scale-105 transition">
+            Download Poster (PNG)
+          </button>
+          <button id="resetBtn" class="px-8 py-4 bg-gray-300 dark:bg-gray-700 rounded-full font-bold hover:scale-105 transition">
+            New Poster
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="mt-12 text-sm opacity-60">
+      Made with 🔥 by truefuture227-oss
+    </footer>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const preview = document.getElementById('preview');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    let images = [];
+
+    // Open file picker
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+    // Drag & drop
+    ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); }));
+    ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); }));
+    dropZone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+
+    function handleFiles(files) {
+      images = [];
+      for (let file of files) {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = ev => {
+            const img = new Image();
+            img.onload = () => { images.push(img); if (images.length === files.length) renderPoster(); };
+            img.src = ev.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    }
+
+    function renderPoster() {
+      const poster = document.getElementById('poster');
+      canvas.width = poster.clientWidth * 2;
+      canvas.height = poster.clientHeight * 2;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (images.length === 1) {
+        drawSingle(images[0]);
+      } else if (images.length === 2) {
+        drawTwo(images);
+      } else if (images.length <= 6) {
+        drawGrid(images);
+      } else {
+        drawCollage(images);
+      }
+
+      uploadArea.classList.add('hidden');
+      preview.classList.remove('hidden');
+    }
+
+    function drawSingle(img) {
+      const scale = Math.max(canvas.width / img.width, canvas.height / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      ctx.drawImage(img, (canvas.width - w)/2, (canvas.height - h)/2, w, h);
+    }
+
+    function drawTwo(imgs) {
+      const half = canvas.width / 2;
+      imgs.forEach((img, i) => {
+        const scale = Math.max(half / img.width, canvas.height / img.height);
+        const w = img.width * scale * 0.9, h = img.height * scale * 0.9;
+        ctx.drawImage(img, i * half + (half - w)/2, (canvas.height - h)/2, w, h);
+      });
+    }
+
+    function drawGrid(imgs) {
+      const cols = imgs.length <= 4 ? 2 : 3;
+      const rows = Math.ceil(imgs.length / cols);
+      const cellW = canvas.width / cols, cellH = canvas.height / rows;
+
+      imgs.forEach((img, i) => {
+        const col = i % cols, row = Math.floor(i / cols);
+        const scale = Math.min(cellW / img.width, cellH / img.height) * 0.9;
+        const w = img.width * scale, h = img.height * scale;
+        ctx.drawImage(img, col * cellW + (cellW - w)/2, row * cellH + (cellH - h)/2, w, h);
+      });
+    }
+
+    function drawCollage(imgs) {
+      imgs.slice(0, 9).forEach((img, i) => {
+        const angle = Math.random() * 20 - 10;
+        ctx.save();
+        ctx.translate(canvas.width * (0.2 + Math.random() * 0.6), canvas.height * (0.2 + Math.random() * 0.6));
+        ctx.rotate(angle * Math.PI / 180);
+        const scale = 0.3 + Math.random() * 0.4;
+        ctx.drawImage(img, -img.width * scale / 2, -img.height * scale / 2, img.width * scale, img.height * scale);
+        ctx.restore();
+      });
+    }
+
+    downloadBtn.onclick = () => {
+      const link = document.createElement('a');
+      link.download = 'my-poster.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    };
+
+    resetBtn.onclick = () => {
+      images = [];
+      preview.classList.add('hidden');
+      uploadArea.classList.remove('hidden');
+      fileInput.value = '';
+    };
+  </script>
+</body>
+  </html>
